@@ -1,0 +1,78 @@
+# One command to run the whole platform: `docker compose up --build`
+# Services: postgres, redis, security-service (Python), api (Node),
+# worker (Node, same image as api), web (Next.js).
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: blackout
+      POSTGRES_PASSWORD: blackout
+      POSTGRES_DB: blackout
+    ports: ["5432:5432"]
+    volumes: ["pgdata:/var/lib/postgresql/data"]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U blackout"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    ports: ["6379:6379"]
+
+  security-service:
+    build: ./packages/security-service
+    environment:
+      INTERNAL_SERVICE_TOKEN: ${INTERNAL_SERVICE_TOKEN:-dev-internal-token}
+      # Optional: set ANTHROPIC_API_KEY in .env for AI-written assessments.
+      # Without it, assessments are generated from templates and still work.
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+    ports: ["8000:8000"]
+
+  api:
+    build: ./packages/api
+    depends_on:
+      postgres: { condition: service_healthy }
+      redis: { condition: service_started }
+    environment:
+      DATABASE_URL: postgresql://blackout:blackout@postgres:5432/blackout
+      REDIS_URL: redis://redis:6379
+      SECURITY_SERVICE_URL: http://security-service:8000
+      INTERNAL_SERVICE_TOKEN: ${INTERNAL_SERVICE_TOKEN:-dev-internal-token}
+      JWT_ACCESS_SECRET: ${JWT_ACCESS_SECRET:-change-me-in-prod}
+      WEB_ORIGIN: http://localhost:3000
+    ports: ["4000:4000"]
+    # Sync the schema to Postgres, then start the server.
+    # `db push` creates tables directly from schema.prisma — correct for a
+    # scaffold with no migration history. Once you're committing schema changes
+    # over time, switch to `prisma migrate deploy` + checked-in migration files.
+    command: sh -c "npx prisma db push --skip-generate && node dist/index.js"
+
+  worker:
+    build: ./packages/api
+    depends_on:
+      api: { condition: service_started }
+    environment:
+      DATABASE_URL: postgresql://blackout:blackout@postgres:5432/blackout
+      REDIS_URL: redis://redis:6379
+      SECURITY_SERVICE_URL: http://security-service:8000
+      INTERNAL_SERVICE_TOKEN: ${INTERNAL_SERVICE_TOKEN:-dev-internal-token}
+      # Optional SMTP. Without it, alerts are logged to the worker console
+      # instead of emailed — the feature still demonstrably works.
+      SMTP_HOST: ${SMTP_HOST:-}
+      SMTP_PORT: ${SMTP_PORT:-587}
+      SMTP_USER: ${SMTP_USER:-}
+      SMTP_PASS: ${SMTP_PASS:-}
+      ALERT_FROM: ${ALERT_FROM:-blackout@localhost}
+    command: node dist/worker.js
+
+  web:
+    build: ./packages/web
+    depends_on:
+      api: { condition: service_started }
+    environment:
+      NEXT_PUBLIC_API_URL: http://localhost:4000
+    ports: ["3000:3000"]
+
+volumes:
+  pgdata:

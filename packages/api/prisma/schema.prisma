@@ -1,0 +1,162 @@
+// Prisma schema for Blackout.
+// Design notes:
+// - Every scan belongs to an Organization, not a User. Multi-tenancy is baked
+//   in from day one because retrofitting it later is agony. RBAC is enforced
+//   at the org membership level.
+// - We store raw recon JSON (reconData) AND normalized Asset rows. The JSON is
+//   the source of truth / audit record; the Asset rows are what we query and
+//   render. This "raw + projection" pattern is common in security tooling.
+// - Refresh tokens are persisted (hashed) so we can revoke them. Access tokens
+//   are stateless JWTs and never stored.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  OWNER
+  ADMIN
+  MEMBER
+  VIEWER
+}
+
+enum ScanStatus {
+  QUEUED
+  RUNNING
+  COMPLETED
+  FAILED
+}
+
+model User {
+  id           String       @id @default(cuid())
+  email        String       @unique
+  passwordHash String
+  name         String?
+  createdAt    DateTime     @default(now())
+  memberships  Membership[]
+  refreshTokens RefreshToken[]
+}
+
+model Organization {
+  id          String       @id @default(cuid())
+  name        String
+  createdAt   DateTime     @default(now())
+  memberships Membership[]
+  scans       Scan[]
+  schedules   Schedule[]
+}
+
+model Membership {
+  id     String       @id @default(cuid())
+  role   Role         @default(MEMBER)
+  user   User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId String
+  org    Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  orgId  String
+
+  @@unique([userId, orgId])
+}
+
+model RefreshToken {
+  id        String   @id @default(cuid())
+  tokenHash String   @unique
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId    String
+  expiresAt DateTime
+  revoked   Boolean  @default(false)
+  createdAt DateTime @default(now())
+}
+
+model Scan {
+  id         String       @id @default(cuid())
+  domain     String
+  status     ScanStatus   @default(QUEUED)
+  authorized Boolean      @default(false)
+  riskScore  Int?
+  severity   String?
+  reconData  Json?        // raw ReconResult, source of truth
+  analysis   Json?        // AI/template narrative assessment
+  riskData   Json?        // raw risk report
+  error      String?
+  org        Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  orgId      String
+  createdBy  String
+  scheduleId String?
+  alertEmail String?
+  createdAt  DateTime     @default(now())
+  finishedAt DateTime?
+  assets     Asset[]
+  findings   Finding[]
+  vulns      Vulnerability[]
+
+  @@index([orgId, createdAt])
+}
+
+model Asset {
+  id     String @id @default(cuid())
+  scan   Scan   @relation(fields: [scanId], references: [id], onDelete: Cascade)
+  scanId String
+  kind   String // subdomain | ip | port | certificate | technology
+  value  String
+  meta   Json?
+
+  @@index([scanId, kind])
+}
+
+model Finding {
+  id       String @id @default(cuid())
+  scan     Scan   @relation(fields: [scanId], references: [id], onDelete: Cascade)
+  scanId   String
+  severity String
+  title    String
+  weight   Int
+  evidence Json?
+}
+
+model Schedule {
+  id         String       @id @default(cuid())
+  domain     String
+  cron       String       // BullMQ repeat pattern, e.g. "0 3 * * *"
+  authorized Boolean      @default(false)
+  alertEmail String?
+  enabled    Boolean      @default(true)
+  org        Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  orgId      String
+  createdBy  String
+  createdAt  DateTime     @default(now())
+  lastRunAt  DateTime?
+
+  @@index([orgId])
+}
+
+model Vulnerability {
+  id          String  @id @default(cuid())
+  scan        Scan    @relation(fields: [scanId], references: [id], onDelete: Cascade)
+  scanId      String
+  cveId       String
+  cvssScore   Float?
+  severity    String
+  product     String
+  version     String
+  description String
+  publishedAt String?
+
+  @@index([scanId, severity])
+  @@index([cveId])
+}
+
+model AuditLog {
+  id        String   @id @default(cuid())
+  orgId     String?
+  userId    String?
+  action    String
+  metadata  Json?
+  createdAt DateTime @default(now())
+
+  @@index([orgId, createdAt])
+}

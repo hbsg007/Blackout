@@ -1,0 +1,319 @@
+/* ============================================================================
+   Blackout design system
+
+   CORE RULE: color is reserved exclusively for severity.
+   Every neutral is a desaturated blue-steel; the only saturated pixels on
+   screen carry severity meaning. In a console where everything is colorful,
+   nothing reads as urgent. This constraint is the whole visual identity.
+
+   Type: Space Grotesk for structure and prose, JetBrains Mono for every piece
+   of machine-produced data — IPs, CVE IDs, ports, hashes, hostnames. That
+   split isn't decoration; monospace signals "this is a literal value you may
+   need to copy or compare character by character."
+   ============================================================================ */
+
+:root {
+  /* surfaces — cool steel, never pure black */
+  --void: #0B0E14;
+  --panel: #111620;
+  --panel-hi: #161C28;
+  --line: #1E2633;
+  --line-hi: #2A3444;
+
+  /* text */
+  --text: #C5CDD9;
+  --text-hi: #EDF1F6;
+  --dim: #6B7688;
+  --dimmer: #3F4757;
+
+  /* severity — the only saturated colors in the system */
+  --critical: #FF4D6A;
+  --high: #FF8C42;
+  --medium: #E8C547;
+  --low: #4A9EDB;
+  --info: #5A6472;
+
+  /* interaction */
+  --accent: #7DD3C0;
+  --accent-dim: #2E5D55;
+
+  --mono: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+  --sans: "Space Grotesk", ui-sans-serif, system-ui, sans-serif;
+
+  --r: 4px;
+}
+
+* { box-sizing: border-box; }
+
+html, body {
+  margin: 0;
+  padding: 0;
+  background: var(--void);
+  color: var(--text);
+  font-family: var(--sans);
+  font-size: 14px;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Ambient grid — a faint coordinate field, the way a radar console has one.
+   Barely visible by design; it gives the dark field structure without
+   competing with data. */
+body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  background-image:
+    linear-gradient(var(--line) 1px, transparent 1px),
+    linear-gradient(90deg, var(--line) 1px, transparent 1px);
+  background-size: 48px 48px;
+  opacity: 0.22;
+  pointer-events: none;
+  z-index: 0;
+}
+
+.shell { position: relative; z-index: 1; display: flex; min-height: 100vh; }
+
+/* ---- rail ---------------------------------------------------------------- */
+.rail {
+  width: 300px;
+  flex-shrink: 0;
+  border-right: 1px solid var(--line);
+  background: var(--panel);
+  display: flex;
+  flex-direction: column;
+  max-height: 100vh;
+  position: sticky;
+  top: 0;
+}
+
+.brand {
+  padding: 20px 20px 16px;
+  border-bottom: 1px solid var(--line);
+}
+.brand-mark {
+  font-family: var(--mono);
+  font-size: 10px;
+  letter-spacing: 0.28em;
+  color: var(--accent);
+  margin-bottom: 6px;
+}
+.brand-name {
+  font-size: 20px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  color: var(--text-hi);
+  margin: 0;
+}
+.brand-sub {
+  font-size: 11px;
+  color: var(--dim);
+  margin: 2px 0 0;
+}
+
+.rail-body { overflow-y: auto; flex: 1; }
+
+.rail-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 20px 8px;
+  font-family: var(--mono);
+  font-size: 10px;
+  letter-spacing: 0.16em;
+  color: var(--dim);
+}
+
+.scan-row {
+  display: block;
+  width: 100%;
+  text-align: left;
+  padding: 11px 20px;
+  background: none;
+  border: 0;
+  border-left: 2px solid transparent;
+  color: var(--text);
+  cursor: pointer;
+  font-family: var(--sans);
+  font-size: 13px;
+  transition: background 120ms, border-color 120ms;
+}
+.scan-row:hover { background: var(--panel-hi); }
+.scan-row[data-active="true"] {
+  background: var(--panel-hi);
+  border-left-color: var(--accent);
+}
+.scan-row-top {
+  display: flex; justify-content: space-between; align-items: baseline; gap: 8px;
+}
+.scan-domain {
+  font-family: var(--mono);
+  color: var(--text-hi);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.scan-meta {
+  font-family: var(--mono);
+  font-size: 10px;
+  color: var(--dim);
+  margin-top: 3px;
+  display: flex;
+  gap: 8px;
+}
+
+/* ---- main ---------------------------------------------------------------- */
+.main { flex: 1; padding: 28px 32px 64px; max-width: 1100px; min-width: 0; }
+
+.panel {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: var(--r);
+  padding: 20px;
+  margin-bottom: 20px;
+}
+
+.panel-title {
+  font-family: var(--mono);
+  font-size: 10px;
+  letter-spacing: 0.16em;
+  color: var(--dim);
+  margin: 0 0 14px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.panel-title::after {
+  content: "";
+  flex: 1;
+  height: 1px;
+  background: var(--line);
+}
+
+/* ---- controls ------------------------------------------------------------ */
+input[type="text"], input[type="email"], input[type="password"], select {
+  background: var(--void);
+  border: 1px solid var(--line-hi);
+  border-radius: var(--r);
+  color: var(--text-hi);
+  padding: 9px 11px;
+  font-family: var(--mono);
+  font-size: 13px;
+  outline: none;
+  transition: border-color 120ms;
+}
+input:focus, select:focus { border-color: var(--accent); }
+input::placeholder { color: var(--dimmer); }
+
+button.btn {
+  background: var(--accent);
+  color: #06231D;
+  border: 0;
+  border-radius: var(--r);
+  padding: 9px 18px;
+  font-family: var(--sans);
+  font-weight: 600;
+  font-size: 13px;
+  cursor: pointer;
+  transition: filter 120ms;
+}
+button.btn:hover { filter: brightness(1.12); }
+button.btn:disabled { opacity: 0.45; cursor: not-allowed; }
+
+button.btn-ghost {
+  background: transparent;
+  color: var(--text);
+  border: 1px solid var(--line-hi);
+}
+button.btn-ghost:hover { background: var(--panel-hi); filter: none; }
+
+label.check {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 12px;
+  color: var(--dim);
+  cursor: pointer;
+}
+label.check input { accent-color: var(--accent); }
+
+/* ---- severity ------------------------------------------------------------ */
+.sev-critical { color: var(--critical); }
+.sev-high     { color: var(--high); }
+.sev-medium   { color: var(--medium); }
+.sev-low      { color: var(--low); }
+.sev-informational, .sev-unknown { color: var(--info); }
+
+.tag {
+  font-family: var(--mono);
+  font-size: 9px;
+  letter-spacing: 0.1em;
+  padding: 2px 6px;
+  border-radius: 2px;
+  border: 1px solid currentColor;
+  text-transform: uppercase;
+}
+
+/* ---- data table ---------------------------------------------------------- */
+table.data { width: 100%; border-collapse: collapse; font-family: var(--mono); font-size: 12px; }
+table.data th {
+  text-align: left;
+  font-weight: 400;
+  font-size: 10px;
+  letter-spacing: 0.12em;
+  color: var(--dim);
+  padding: 0 12px 8px 0;
+  border-bottom: 1px solid var(--line);
+}
+table.data td { padding: 8px 12px 8px 0; border-bottom: 1px solid var(--line); }
+table.data tr:last-child td { border-bottom: 0; }
+table.data a { color: var(--low); text-decoration: none; }
+table.data a:hover { text-decoration: underline; }
+
+/* ---- finding rows -------------------------------------------------------- */
+.finding {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+  padding: 9px 0;
+  border-bottom: 1px solid var(--line);
+}
+.finding:last-child { border-bottom: 0; }
+.finding-bar { width: 3px; align-self: stretch; border-radius: 2px; background: currentColor; }
+.finding-title { font-size: 13px; color: var(--text); }
+.finding-weight { font-family: var(--mono); font-size: 11px; color: var(--dim); margin-left: auto; }
+
+/* ---- empty / error ------------------------------------------------------- */
+.empty {
+  padding: 28px 0;
+  text-align: center;
+  color: var(--dim);
+  font-size: 13px;
+}
+.notice {
+  border-left: 2px solid var(--medium);
+  background: rgba(232, 197, 71, 0.06);
+  padding: 10px 14px;
+  font-size: 12px;
+  color: var(--medium);
+  border-radius: 0 var(--r) var(--r) 0;
+  margin-bottom: 14px;
+}
+.notice-error { border-left-color: var(--critical); background: rgba(255,77,106,0.06); color: var(--critical); }
+
+/* ---- misc ---------------------------------------------------------------- */
+.mono { font-family: var(--mono); }
+.row { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+.spacer { flex: 1; }
+
+@media (max-width: 860px) {
+  .shell { flex-direction: column; }
+  .rail { width: 100%; max-height: none; position: static; }
+  .main { padding: 20px 16px 48px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * { animation: none !important; transition: none !important; }
+}
+
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
